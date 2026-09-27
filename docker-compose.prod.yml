@@ -134,13 +134,36 @@ services:
         # Set VITE_CARTO_BASEMAP_URL in the root .env to bake a keyed basemap
         # URL; leave it unset to use the keyless Carto voyager fallback.
         VITE_CARTO_BASEMAP_URL: ${VITE_CARTO_BASEMAP_URL:-}
-    ports:
-      - "80:80"
+    # No host port: Caddy reverse-proxies to it over the internal network and
+    # owns 80/443 for HTTPS. (For a quick HTTP-only test without a domain,
+    # comment out the caddy service and add:  ports: ["80:80"]  here.)
+    expose:
+      - "80"
     depends_on:
       - api
+    logging: *default-logging
+    restart: unless-stopped
+
+  # Reverse proxy + automatic HTTPS. Needs DOMAIN set in .env and an A record
+  # pointing DOMAIN -> the VM public IP, plus ports 80 and 443 open in Azure.
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      - frontend
     logging: *default-logging
     restart: unless-stopped
 
 volumes:
   pgdata:
   redisdata:
+  caddydata:
+  caddyconfig:

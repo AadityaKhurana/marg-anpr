@@ -1,0 +1,12 @@
+# Caddy reverse proxy for MARG — automatic HTTPS via Let's Encrypt.
+#
+# {$DOMAIN} is read from the DOMAIN env var passed to the caddy container
+# (set it in the root .env, e.g. DOMAIN=marg.example.me).
+#
+# Everything — the SPA, /api, and the /ws WebSocket — lives behind the
+# frontend nginx, so Caddy only needs to forward to it. Caddy handles the
+# WebSocket upgrade transparently, so no special /ws block is required.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy frontend:80
+}
