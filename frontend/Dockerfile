@@ -15,15 +15,17 @@ ARG VITE_WS_URL=/ws/live
 ARG VITE_MAP_CENTER_LAT=28.5900
 ARG VITE_MAP_CENTER_LNG=77.0470
 ARG VITE_MAP_ZOOM=13
-# VITE_CARTO_BASEMAP_URL is intentionally NOT set here: the app falls back to the
-# keyless Carto "voyager" CDN when it is undefined. Setting it to an empty string
-# would DEFEAT that fallback (?? keeps "") and render a blank basemap.
+# Optional keyed basemap URL. Leave empty to use the app's keyless Carto voyager
+# fallback (config.ts uses `||`, so an empty string still falls back cleanly).
+# To use a keyed provider, pass the full tile URL (including the key/token).
+ARG VITE_CARTO_BASEMAP_URL=
 ENV VITE_USE_MOCK=$VITE_USE_MOCK \
     VITE_API_BASE_URL=$VITE_API_BASE_URL \
     VITE_WS_URL=$VITE_WS_URL \
     VITE_MAP_CENTER_LAT=$VITE_MAP_CENTER_LAT \
     VITE_MAP_CENTER_LNG=$VITE_MAP_CENTER_LNG \
-    VITE_MAP_ZOOM=$VITE_MAP_ZOOM
+    VITE_MAP_ZOOM=$VITE_MAP_ZOOM \
+    VITE_CARTO_BASEMAP_URL=$VITE_CARTO_BASEMAP_URL
 
 COPY package*.json ./
 RUN npm ci

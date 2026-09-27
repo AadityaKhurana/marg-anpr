@@ -131,6 +131,9 @@ services:
         VITE_MAP_CENTER_LAT: "28.5900"
         VITE_MAP_CENTER_LNG: "77.0470"
         VITE_MAP_ZOOM: "13"
+        # Set VITE_CARTO_BASEMAP_URL in the root .env to bake a keyed basemap
+        # URL; leave it unset to use the keyless Carto voyager fallback.
+        VITE_CARTO_BASEMAP_URL: ${VITE_CARTO_BASEMAP_URL:-}
     ports:
       - "80:80"
     depends_on:
