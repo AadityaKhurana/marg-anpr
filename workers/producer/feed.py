@@ -31,6 +31,9 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 FLEET = int(os.getenv("PRODUCER_FLEET", "12"))          # concurrent plate trips
 SCAN = float(os.getenv("PRODUCER_SCAN_SECONDS", "2"))   # scheduler tick
 BLACK = "DL8CAF5678"                                    # blacklisted in the seed
+BLACK_START = "JCT-14"                                  # = seed's LAST DL8CAF5678 junction,
+                                                        # so the live walk continues the seeded
+                                                        # trajectory (same node collapses; no seam)
 _LET = "ABDEFGHJKLMNPRSTUVWXYZ"
 
 
@@ -123,7 +126,7 @@ def main() -> None:
         return {"plate": plate, "path": make_path(start, adj), "idx": 0,
                 "due": time.time() + random.uniform(0, 15)}
 
-    fleet = [new_trip(BLACK)] + [new_trip(rand_plate()) for _ in range(max(0, FLEET - 1))]
+    fleet = [new_trip(BLACK, start=BLACK_START if BLACK_START in adj else None)] + [new_trip(rand_plate()) for _ in range(max(0, FLEET - 1))]
     i = 0
     while True:
         now = time.time()

@@ -326,7 +326,7 @@ INSERT INTO approach_cameras (camera_code, junction_code, from_road, location, h
   ('CAM-47', 'JCT-16', 'Road 224 junction', ST_SetSRID(ST_MakePoint(77.049991, 28.582177), 4326), 127, 307),
   ('CAM-48', 'JCT-15', 'Road 221 junction', ST_SetSRID(ST_MakePoint(77.057556, 28.577238), 4326), 308, 128);
 
-INSERT INTO plates (normalized_plate) VALUES ('DL3CAB1234'), ('DL8CAF5678');
+INSERT INTO plates (normalized_plate) VALUES ('DL3CAB1234'), ('DL8CAF5678'), ('DL9CAX4321');
 
 -- Trip: plate seen at a sequence of junctions (aggregated from its cameras)
 INSERT INTO sightings (source_event_id, camera_id, plate_id, raw_plate_text, normalized_plate_candidate, detection_confidence, ocr_confidence, ocr_candidates, validation_status, spotted_at, direction_degrees, vehicle_type, vehicle_color, lane_number, model_version)
@@ -338,23 +338,36 @@ VALUES
   ('seed-DL3CAB1234-JCT-05', (SELECT camera_id FROM cameras WHERE camera_code='JCT-05'), (SELECT plate_id FROM plates WHERE normalized_plate='DL3CAB1234'), 'DL3CAB1234', 'DL3CAB1234', 0.96, 0.93, '[]'::jsonb, 'accepted', now() - make_interval(secs => 64), 216, 'car', 'white', 2, 'anpr-v1'),
   ('seed-DL3CAB1234-JCT-06', (SELECT camera_id FROM cameras WHERE camera_code='JCT-06'), (SELECT plate_id FROM plates WHERE normalized_plate='DL3CAB1234'), 'DL3CAB1234', 'DL3CAB1234', 0.96, 0.93, '[]'::jsonb, 'accepted', now() - make_interval(secs => 0), 216, 'car', 'white', 2, 'anpr-v1');
 
+-- Blacklisted plate DL8CAF5678 — a clean, realistic corridor walk across adjacent
+-- junctions (every hop feasible; direction left NULL so no hop reads wrong-direction).
 INSERT INTO sightings (source_event_id, camera_id, plate_id, raw_plate_text, normalized_plate_candidate, detection_confidence, ocr_confidence, ocr_candidates, validation_status, spotted_at, direction_degrees, vehicle_type, vehicle_color, lane_number, model_version)
 VALUES
-  ('seed-DL8CAF5678-JCT-01', (SELECT camera_id FROM cameras WHERE camera_code='JCT-01'), (SELECT plate_id FROM plates WHERE normalized_plate='DL8CAF5678'), 'DL8CAF5678', 'DL8CAF5678', 0.93, 0.88, '[]'::jsonb, 'accepted', now() - make_interval(secs => 600), 165, 'car', 'black', 3, 'anpr-v1'),
-  ('seed-DL8CAF5678-JCT-15', (SELECT camera_id FROM cameras WHERE camera_code='JCT-15'), (SELECT plate_id FROM plates WHERE normalized_plate='DL8CAF5678'), 'DL8CAF5678', 'DL8CAF5678', 0.93, 0.88, '[]'::jsonb, 'accepted', now() - make_interval(secs => 595), 0, 'car', 'black', 3, 'anpr-v1');
+  ('seed-DL8CAF5678-JCT-15', (SELECT camera_id FROM cameras WHERE camera_code='JCT-15'), (SELECT plate_id FROM plates WHERE normalized_plate='DL8CAF5678'), 'DL8CAF5678', 'DL8CAF5678', 0.93, 0.88, '[]'::jsonb, 'accepted', now() - make_interval(secs => 249), NULL, 'car', 'black', 3, 'anpr-v1'),
+  ('seed-DL8CAF5678-JCT-13', (SELECT camera_id FROM cameras WHERE camera_code='JCT-13'), (SELECT plate_id FROM plates WHERE normalized_plate='DL8CAF5678'), 'DL8CAF5678', 'DL8CAF5678', 0.93, 0.88, '[]'::jsonb, 'accepted', now() - make_interval(secs => 201), NULL, 'car', 'black', 3, 'anpr-v1'),
+  ('seed-DL8CAF5678-JCT-10', (SELECT camera_id FROM cameras WHERE camera_code='JCT-10'), (SELECT plate_id FROM plates WHERE normalized_plate='DL8CAF5678'), 'DL8CAF5678', 'DL8CAF5678', 0.93, 0.88, '[]'::jsonb, 'accepted', now() - make_interval(secs => 154), NULL, 'car', 'black', 3, 'anpr-v1'),
+  ('seed-DL8CAF5678-JCT-11', (SELECT camera_id FROM cameras WHERE camera_code='JCT-11'), (SELECT plate_id FROM plates WHERE normalized_plate='DL8CAF5678'), 'DL8CAF5678', 'DL8CAF5678', 0.93, 0.88, '[]'::jsonb, 'accepted', now() - make_interval(secs => 108), NULL, 'car', 'black', 3, 'anpr-v1'),
+  ('seed-DL8CAF5678-JCT-12', (SELECT camera_id FROM cameras WHERE camera_code='JCT-12'), (SELECT plate_id FROM plates WHERE normalized_plate='DL8CAF5678'), 'DL8CAF5678', 'DL8CAF5678', 0.93, 0.88, '[]'::jsonb, 'accepted', now() - make_interval(secs => 69), NULL, 'car', 'black', 3, 'anpr-v1'),
+  ('seed-DL8CAF5678-JCT-14', (SELECT camera_id FROM cameras WHERE camera_code='JCT-14'), (SELECT plate_id FROM plates WHERE normalized_plate='DL8CAF5678'), 'DL8CAF5678', 'DL8CAF5678', 0.93, 0.88, '[]'::jsonb, 'accepted', now() - make_interval(secs => 0), NULL, 'car', 'black', 3, 'anpr-v1');
+
+-- Cloned-plate demo DL9CAX4321 — the SAME plate at two LINKED junctions ~5s apart,
+-- far faster than the ~41s free-flow time => route anomaly (impossible travel time).
+INSERT INTO sightings (source_event_id, camera_id, plate_id, raw_plate_text, normalized_plate_candidate, detection_confidence, ocr_confidence, ocr_candidates, validation_status, spotted_at, direction_degrees, vehicle_type, vehicle_color, lane_number, model_version)
+VALUES
+  ('seed-DL9CAX4321-JCT-10', (SELECT camera_id FROM cameras WHERE camera_code='JCT-10'), (SELECT plate_id FROM plates WHERE normalized_plate='DL9CAX4321'), 'DL9CAX4321', 'DL9CAX4321', 0.92, 0.87, '[]'::jsonb, 'accepted', now() - make_interval(secs => 300), NULL, 'car', 'silver', 2, 'anpr-v1'),
+  ('seed-DL9CAX4321-JCT-13', (SELECT camera_id FROM cameras WHERE camera_code='JCT-13'), (SELECT plate_id FROM plates WHERE normalized_plate='DL9CAX4321'), 'DL9CAX4321', 'DL9CAX4321', 0.92, 0.87, '[]'::jsonb, 'accepted', now() - make_interval(secs => 295), NULL, 'car', 'silver', 2, 'anpr-v1');
 
 INSERT INTO blacklist_entries (plate_id, reason, severity, status, added_by, case_reference)
 SELECT plate_id, 'Reported stolen (demo)', 'high', 'active', 'seed', 'DWK-CASE-001' FROM plates WHERE normalized_plate='DL8CAF5678';
 
 INSERT INTO alerts (dedup_key, alert_type, sighting_id, blacklist_entry_id, status, match_confidence, details)
-SELECT 'seed-bl-DL8CAF5678', 'blacklist', s.sighting_id, b.blacklist_entry_id, 'new', 1.0, jsonb_build_object('camera','JCT-01')
+SELECT 'seed-bl-DL8CAF5678', 'blacklist', s.sighting_id, b.blacklist_entry_id, 'new', 1.0, jsonb_build_object('camera','JCT-15')
 FROM sightings s JOIN plates p ON p.plate_id=s.plate_id AND p.normalized_plate='DL8CAF5678'
 JOIN blacklist_entries b ON b.plate_id=p.plate_id
-WHERE s.source_event_id='seed-DL8CAF5678-JCT-01';
+WHERE s.source_event_id='seed-DL8CAF5678-JCT-15';
 
 INSERT INTO alerts (dedup_key, alert_type, sighting_id, previous_sighting_id, anomaly_reason, status, match_confidence, details)
-SELECT 'seed-anom-DL8CAF5678', 'route_anomaly', cur.sighting_id, prev.sighting_id, 'impossible_travel_time', 'new', 0.98, jsonb_build_object('observed_seconds',5)
-FROM sightings cur JOIN sightings prev ON prev.source_event_id='seed-DL8CAF5678-JCT-01'
-WHERE cur.source_event_id='seed-DL8CAF5678-JCT-15';
+SELECT 'seed-anom-DL9CAX4321', 'route_anomaly', cur.sighting_id, prev.sighting_id, 'impossible_travel_time', 'new', 0.98, jsonb_build_object('observed_seconds',5)
+FROM sightings cur JOIN sightings prev ON prev.source_event_id='seed-DL9CAX4321-JCT-10'
+WHERE cur.source_event_id='seed-DL9CAX4321-JCT-13';
 
 COMMIT;

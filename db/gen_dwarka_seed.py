@@ -47,6 +47,7 @@ DROP_JUNCTION = {"Sector 14 / Vegas Mall", "Sector 13 (north)"}
 
 PLATES_TRIP = "DL3CAB1234"
 PLATE_BLACK = "DL8CAF5678"
+PLATE_CLONE = "DL9CAX4321"   # cloned-plate demo (impossible travel between two linked junctions)
 
 # Explicit curated junction set (label, lat, lon). Empty label -> named from the
 # snapped road. Coords are approximate; each is snapped to the nearest real road.
@@ -280,8 +281,23 @@ def main():
         a, b = (0, 1) if t == 0 else (t - 1, t)
         return bearing(jpt(path[a]), jpt(path[b]))
 
-    b1j = path[0]
-    b2j = max(range(n), key=lambda x: haversine(jpt(path[0]), jpt(x)))
+    # Blacklisted plate: its OWN clean walk, from the junction farthest from the
+    # trip start (so it does not overlap DL3CAB1234's route). All hops feasible.
+    bstart = max(range(n), key=lambda x: haversine(jpt(path[0]), jpt(x)))
+    bpath, bcur, bseen = [bstart], bstart, {bstart}
+    while len(bpath) < min(6, n):
+        cand = [x for x in adjj.get(bcur, []) if x not in bseen]
+        if not cand:
+            break
+        nxt = min(cand, key=lambda x: seg[(min(bcur, x), max(bcur, x))][1])
+        bpath.append(nxt); bseen.add(nxt); bcur = nxt
+    bffs = [seg[(min(bpath[t - 1], bpath[t]), max(bpath[t - 1], bpath[t]))][2] for t in range(1, len(bpath))]
+    boffs = [0]
+    for f in bffs:
+        boffs.append(boffs[-1] + round(f * 1.15))
+    btotal = boffs[-1]
+    # Cloned-plate demo: the closest LINKED junction pair, 5s apart => impossible travel.
+    ci, cj = min(pairs, key=lambda p: seg[p][2])
 
     # ---- Emit SQL ----
     out = []; w = out.append
@@ -338,7 +354,7 @@ def main():
         w("INSERT INTO approach_cameras (camera_code, junction_code, from_road, location, heading_degrees, travel_degrees) VALUES")
         w(",\n".join(ac) + ";")
     w("")
-    w(f"INSERT INTO plates (normalized_plate) VALUES ({sql_str(PLATES_TRIP)}), ({sql_str(PLATE_BLACK)});")
+    w(f"INSERT INTO plates (normalized_plate) VALUES ({sql_str(PLATES_TRIP)}), ({sql_str(PLATE_BLACK)}), ({sql_str(PLATE_CLONE)});")
     w("")
     w("-- Trip: plate seen at a sequence of junctions (aggregated from its cameras)")
     w("INSERT INTO sightings (source_event_id, camera_id, plate_id, raw_plate_text, "
@@ -353,34 +369,49 @@ def main():
                   f"now() - make_interval(secs => {total - offs[k]}), {jdir(k)}, 'car', 'white', 2, 'anpr-v1')")
     w("VALUES\n" + ",\n".join(tr) + ";")
     w("")
-    c1, c2 = JCODE[b1j], JCODE[b2j]
+    # Blacklisted plate — clean feasible walk (direction NULL => every hop reads "valid").
+    w("INSERT INTO sightings (source_event_id, camera_id, plate_id, raw_plate_text, "
+      "normalized_plate_candidate, detection_confidence, ocr_confidence, ocr_candidates, "
+      "validation_status, spotted_at, direction_degrees, vehicle_type, vehicle_color, lane_number, model_version)")
+    br = []
+    for k in range(len(bpath)):
+        code = JCODE[bpath[k]]
+        br.append(f"  ({sql_str('seed-'+PLATE_BLACK+'-'+code)}, (SELECT camera_id FROM cameras WHERE camera_code={sql_str(code)}), "
+                  f"(SELECT plate_id FROM plates WHERE normalized_plate={sql_str(PLATE_BLACK)}), "
+                  f"{sql_str(PLATE_BLACK)}, {sql_str(PLATE_BLACK)}, 0.93, 0.88, '[]'::jsonb, 'accepted', "
+                  f"now() - make_interval(secs => {btotal - boffs[k]}), NULL, 'car', 'black', 3, 'anpr-v1')")
+    w("VALUES\n" + ",\n".join(br) + ";")
+    w("")
+    cc1, cc2 = JCODE[ci], JCODE[cj]
+    w("-- Cloned-plate demo: same plate at two LINKED junctions ~5s apart => impossible travel.")
     w("INSERT INTO sightings (source_event_id, camera_id, plate_id, raw_plate_text, "
       "normalized_plate_candidate, detection_confidence, ocr_confidence, ocr_candidates, "
       "validation_status, spotted_at, direction_degrees, vehicle_type, vehicle_color, lane_number, model_version)")
     w("VALUES\n" + ",\n".join([
-        f"  ({sql_str('seed-'+PLATE_BLACK+'-'+c1)}, (SELECT camera_id FROM cameras WHERE camera_code={sql_str(c1)}), "
-        f"(SELECT plate_id FROM plates WHERE normalized_plate={sql_str(PLATE_BLACK)}), "
-        f"{sql_str(PLATE_BLACK)}, {sql_str(PLATE_BLACK)}, 0.93, 0.88, '[]'::jsonb, 'accepted', "
-        f"now() - make_interval(secs => 600), {jdir(0)}, 'car', 'black', 3, 'anpr-v1')",
-        f"  ({sql_str('seed-'+PLATE_BLACK+'-'+c2)}, (SELECT camera_id FROM cameras WHERE camera_code={sql_str(c2)}), "
-        f"(SELECT plate_id FROM plates WHERE normalized_plate={sql_str(PLATE_BLACK)}), "
-        f"{sql_str(PLATE_BLACK)}, {sql_str(PLATE_BLACK)}, 0.93, 0.88, '[]'::jsonb, 'accepted', "
-        f"now() - make_interval(secs => 595), 0, 'car', 'black', 3, 'anpr-v1')"]) + ";")
+        f"  ({sql_str('seed-'+PLATE_CLONE+'-'+cc1)}, (SELECT camera_id FROM cameras WHERE camera_code={sql_str(cc1)}), "
+        f"(SELECT plate_id FROM plates WHERE normalized_plate={sql_str(PLATE_CLONE)}), "
+        f"{sql_str(PLATE_CLONE)}, {sql_str(PLATE_CLONE)}, 0.92, 0.87, '[]'::jsonb, 'accepted', "
+        f"now() - make_interval(secs => 300), NULL, 'car', 'silver', 2, 'anpr-v1')",
+        f"  ({sql_str('seed-'+PLATE_CLONE+'-'+cc2)}, (SELECT camera_id FROM cameras WHERE camera_code={sql_str(cc2)}), "
+        f"(SELECT plate_id FROM plates WHERE normalized_plate={sql_str(PLATE_CLONE)}), "
+        f"{sql_str(PLATE_CLONE)}, {sql_str(PLATE_CLONE)}, 0.92, 0.87, '[]'::jsonb, 'accepted', "
+        f"now() - make_interval(secs => 295), NULL, 'car', 'silver', 2, 'anpr-v1')"]) + ";")
     w("")
+    bfirst = JCODE[bpath[0]]
     w("INSERT INTO blacklist_entries (plate_id, reason, severity, status, added_by, case_reference)")
     w(f"SELECT plate_id, 'Reported stolen (demo)', 'high', 'active', 'seed', 'DWK-CASE-001' "
       f"FROM plates WHERE normalized_plate={sql_str(PLATE_BLACK)};")
     w("")
     w("INSERT INTO alerts (dedup_key, alert_type, sighting_id, blacklist_entry_id, status, match_confidence, details)")
-    w(f"SELECT 'seed-bl-{PLATE_BLACK}', 'blacklist', s.sighting_id, b.blacklist_entry_id, 'new', 1.0, jsonb_build_object('camera',{sql_str(c1)})")
+    w(f"SELECT 'seed-bl-{PLATE_BLACK}', 'blacklist', s.sighting_id, b.blacklist_entry_id, 'new', 1.0, jsonb_build_object('camera',{sql_str(bfirst)})")
     w(f"FROM sightings s JOIN plates p ON p.plate_id=s.plate_id AND p.normalized_plate={sql_str(PLATE_BLACK)}")
     w("JOIN blacklist_entries b ON b.plate_id=p.plate_id")
-    w(f"WHERE s.source_event_id={sql_str('seed-'+PLATE_BLACK+'-'+c1)};")
+    w(f"WHERE s.source_event_id={sql_str('seed-'+PLATE_BLACK+'-'+bfirst)};")
     w("")
     w("INSERT INTO alerts (dedup_key, alert_type, sighting_id, previous_sighting_id, anomaly_reason, status, match_confidence, details)")
-    w(f"SELECT 'seed-anom-{PLATE_BLACK}', 'route_anomaly', cur.sighting_id, prev.sighting_id, 'impossible_travel_time', 'new', 0.98, jsonb_build_object('observed_seconds',5)")
-    w(f"FROM sightings cur JOIN sightings prev ON prev.source_event_id={sql_str('seed-'+PLATE_BLACK+'-'+c1)}")
-    w(f"WHERE cur.source_event_id={sql_str('seed-'+PLATE_BLACK+'-'+c2)};")
+    w(f"SELECT 'seed-anom-{PLATE_CLONE}', 'route_anomaly', cur.sighting_id, prev.sighting_id, 'impossible_travel_time', 'new', 0.98, jsonb_build_object('observed_seconds',5)")
+    w(f"FROM sightings cur JOIN sightings prev ON prev.source_event_id={sql_str('seed-'+PLATE_CLONE+'-'+cc1)}")
+    w(f"WHERE cur.source_event_id={sql_str('seed-'+PLATE_CLONE+'-'+cc2)};")
     w("")
     w("COMMIT;")
     Path("db/seed_dwarka.sql").write_text("\n".join(out) + "\n")
